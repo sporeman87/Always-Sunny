@@ -3,44 +3,25 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Customizable Weather Forecast</title>
+  <title>Always Sunny Weather</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: linear-gradient(to bottom, #e0f7fa, #ffffff);
+      background: #e6f7ff;
       color: #333;
-      margin: 0;
       padding: 20px;
     }
     .container {
       max-width: 700px;
       margin: 0 auto;
       background: #fff;
-      border-radius: 12px;
-      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      border-radius: 10px;
       padding: 20px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
     }
     h1 {
       text-align: center;
-      font-size: 1.5em;
-      margin-bottom: 10px;
-    }
-    .day {
-      margin-bottom: 15px;
-      padding: 10px;
-      border-radius: 8px;
-      background: #f0f8ff;
-    }
-    .day h3 {
-      margin: 0 0 5px;
-    }
-    .temps {
-      font-weight: bold;
-    }
-    .extra-info {
-      font-size: 0.9em;
-      color: #555;
-      margin-top: 5px;
+      color: #0288d1;
     }
     .location-input {
       text-align: center;
@@ -50,8 +31,6 @@
     input[type="text"] {
       padding: 8px;
       width: 250px;
-      margin: 0 5px;
-      box-sizing: border-box;
     }
     button {
       padding: 8px 12px;
@@ -65,15 +44,13 @@
       position: absolute;
       background: white;
       border: 1px solid #ccc;
-      border-top: none;
-      width: 260px;
+      width: 250px;
       max-height: 150px;
       overflow-y: auto;
       z-index: 1000;
+      left: 50%;
+      transform: translateX(-50%);
       top: 38px;
-      left: calc(50% - 130px);
-      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-      border-radius: 0 0 8px 8px;
     }
     .autocomplete-item {
       padding: 8px 10px;
@@ -83,78 +60,94 @@
       background-color: #0288d1;
       color: white;
     }
+    .forecast-day {
+      background: #f0faff;
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 10px;
+    }
   </style>
 </head>
 <body>
   <div class="container">
-    <h1>7-Day Weather Forecast</h1>
+    <h1>Always Sunny Weather</h1>
     <div class="location-input">
-      <input type="text" id="locationInput" placeholder="Enter city or ZIP" autocomplete="off" />
-      <button onclick="selectFirstAndFetch()">Get Forecast</button>
+      <input id="locationInput" type="text" placeholder="Enter city or ZIP" autocomplete="off" />
+      <button onclick="handleSearch()">Get Forecast</button>
       <div id="autocompleteList" class="autocomplete-list" style="display:none;"></div>
     </div>
-    <h2 id="locationName" style="text-align:center; margin-top: 0; color: #0288d1;"></h2>
+    <h2 id="locationTitle" style="text-align:center;"></h2>
     <div id="forecast"></div>
   </div>
 
   <script>
     let currentResults = [];
 
-    const input = document.getElementById('locationInput');
-    const autocompleteList = document.getElementById('autocompleteList');
-    const locationNameEl = document.getElementById('locationName');
+    const input = document.getElementById("locationInput");
+    const autocompleteList = document.getElementById("autocompleteList");
+    const locationTitle = document.getElementById("locationTitle");
 
-    input.addEventListener('input', async () => {
+    input.addEventListener("input", async () => {
       const query = input.value.trim();
       if (!query) {
-        autocompleteList.style.display = 'none';
+        autocompleteList.style.display = "none";
         return;
       }
 
-      const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=en&format=json`);
-      const geoData = await geoRes.json();
-      currentResults = geoData.results || [];
+      try {
+        const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5`);
+        const geoData = await geoRes.json();
+        currentResults = geoData.results || [];
 
-      if (currentResults.length === 0) {
-        autocompleteList.style.display = 'none';
-        return;
+        if (currentResults.length === 0) {
+          autocompleteList.style.display = "none";
+          return;
+        }
+
+        autocompleteList.innerHTML = currentResults.map((loc, idx) => {
+          const label = `${loc.name}, ${loc.admin1 || ''}, ${loc.country || ''}`;
+          return `<div class="autocomplete-item" data-index="${idx}">${label}</div>`;
+        }).join("");
+        autocompleteList.style.display = "block";
+      } catch (error) {
+        console.error("Geocoding failed:", error);
       }
-
-      autocompleteList.innerHTML = currentResults.map((loc, idx) => {
-        const display = `${loc.name}${loc.admin1 ? ', ' + loc.admin1 : ''}${loc.country ? ', ' + loc.country : ''}`;
-        return `<div class="autocomplete-item" data-index="${idx}">${display}</div>`;
-      }).join('');
-
-      autocompleteList.style.display = 'block';
     });
 
-    autocompleteList.addEventListener('click', (e) => {
-      if (e.target.classList.contains('autocomplete-item')) {
-        const idx = parseInt(e.target.getAttribute('data-index'));
-        const loc = currentResults[idx];
+    autocompleteList.addEventListener("click", (e) => {
+      if (e.target.classList.contains("autocomplete-item")) {
+        const index = parseInt(e.target.dataset.index);
+        const loc = currentResults[index];
         if (loc) {
-          input.value = `${loc.name}${loc.admin1 ? ', ' + loc.admin1 : ''}${loc.country ? ', ' + loc.country : ''}`;
-          autocompleteList.style.display = 'none';
-          fetchForecast(loc.latitude, loc.longitude, input.value);
+          input.value = `${loc.name}, ${loc.admin1 || ''}, ${loc.country || ''}`;
+          autocompleteList.style.display = "none";
+          fetchWeather(loc.latitude, loc.longitude, input.value);
         }
       }
     });
 
-    document.addEventListener('click', (e) => {
+    document.addEventListener("click", (e) => {
       if (!autocompleteList.contains(e.target) && e.target !== input) {
-        autocompleteList.style.display = 'none';
+        autocompleteList.style.display = "none";
       }
     });
 
-    async function selectFirstAndFetch() {
+    async function handleSearch() {
+      const query = input.value.trim();
+      if (!query) return alert("Please enter a location.");
+
       if (currentResults.length > 0) {
         const loc = currentResults[0];
-        input.value = `${loc.name}${loc.admin1 ? ', ' + loc.admin1 : ''}${loc.country ? ', ' + loc.country : ''}`;
-        autocompleteList.style.display = 'none';
-        fetchForecast(loc.latitude, loc.longitude, input.value);
+        fetchWeather(loc.latitude, loc.longitude, input.value);
       } else {
-        locationNameEl.textContent = '';
-        document.getElementById('forecast').innerHTML = '<p>Location not found.</p>';
+        const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1`);
+        const data = await res.json();
+        const loc = data.results?.[0];
+        if (loc) {
+          fetchWeather(loc.latitude, loc.longitude, query);
+        } else {
+          alert("Location not found.");
+        }
       }
     }
 
@@ -164,61 +157,54 @@
       if (phase < 0.125) return "Waxing Crescent";
       if (phase < 0.25) return "First Quarter";
       if (phase < 0.375) return "Waxing Gibbous";
-      if (phase < 0.5) return "Waxing Gibbous";
       if (phase === 0.5) return "Full Moon";
-      if (phase < 0.625) return "Waning Gibbous";
-      if (phase < 0.75) return "Last Quarter";
-      if (phase < 0.875) return "Waning Crescent";
-      return "New Moon";
+      if (phase < 0.75) return "Waning Gibbous";
+      if (phase < 0.875) return "Last Quarter";
+      return "Waning Crescent";
     }
 
-    async function fetchForecast(lat, lon, locationName = '') {
-      locationNameEl.textContent = locationName;
-      const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,weathercode,windspeed_10m_max,moon_phase&temperature_unit=fahrenheit&timezone=auto`);
-      const data = await response.json();
+    async function fetchWeather(lat, lon, locationName) {
+      try {
+        locationTitle.textContent = locationName;
+        const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,weathercode,windspeed_10m_max,moon_phase&temperature_unit=fahrenheit&timezone=auto`);
+        const data = await res.json();
 
-      const weatherCodes = {
-        0: "Clear sky",
-        1: "Mainly clear",
-        2: "Partly cloudy",
-        3: "Overcast",
-        45: "Fog",
-        48: "Depositing rime fog",
-        51: "Light drizzle",
-        53: "Moderate drizzle",
-        55: "Dense drizzle",
-        61: "Light rain",
-        63: "Moderate rain",
-        65: "Heavy rain",
-        80: "Light showers",
-        81: "Moderate showers",
-        82: "Violent showers",
-        95: "Thunderstorm",
-        96: "Thunderstorm with hail"
-      };
+        const codes = {
+          0: "Clear sky",
+          1: "Mainly clear",
+          2: "Partly cloudy",
+          3: "Overcast",
+          45: "Fog",
+          48: "Depositing rime fog",
+          51: "Light drizzle",
+          53: "Moderate drizzle",
+          55: "Dense drizzle",
+          61: "Light rain",
+          63: "Moderate rain",
+          65: "Heavy rain",
+          80: "Light showers",
+          81: "Moderate showers",
+          82: "Violent showers",
+          95: "Thunderstorm",
+          96: "Thunderstorm with hail"
+        };
 
-      const container = document.getElementById("forecast");
-      const days = data.daily.time;
-
-      container.innerHTML = days.map((date, i) => {
-        const high = data.daily.temperature_2m_max[i];
-        const low = data.daily.temperature_2m_min[i];
-        const code = data.daily.weathercode[i];
-        const condition = weatherCodes[code] || "Unknown";
-        const wind = data.daily.windspeed_10m_max[i];
-        const moonPhase = moonPhaseName(data.daily.moon_phase[i]);
-
-        return `
-          <div class="day">
-            <h3>${new Date(date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</h3>
-            <p>${condition}. <span class="temps">High: ${high}°F, Low: ${low}°F</span></p>
-            <p class="extra-info">Max Wind: ${wind} mph | Moon Phase: ${moonPhase}</p>
+        const out = data.daily.time.map((date, i) => `
+          <div class="forecast-day">
+            <strong>${new Date(date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</strong><br />
+            ${codes[data.daily.weathercode[i]] || "Unknown condition"}<br />
+            High: ${data.daily.temperature_2m_max[i]}°F, Low: ${data.daily.temperature_2m_min[i]}°F<br />
+            Wind: ${data.daily.windspeed_10m_max[i]} mph<br />
+            Moon: ${moonPhaseName(data.daily.moon_phase[i])}
           </div>
-        `;
-      }).join("");
-    }
+        `).join("");
 
-    fetchForecast(39.7876, -75.696, 'Hockessin, DE');
+        document.getElementById("forecast").innerHTML = out;
+      } catch (error) {
+        console.error("Weather fetch failed:", error);
+        alert("Failed to fetch weather data. Try again later.");
+      }
+    }
   </script>
 </body>
 </html>
