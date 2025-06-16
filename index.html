@@ -2,199 +2,101 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Always Sunny Weather</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Always Sunny</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #e6f7ff;
+      padding: 2rem;
+      background: #f8f9fa;
       color: #333;
-      padding: 20px;
-    }
-    .container {
-      max-width: 700px;
-      margin: 0 auto;
-      background: #fff;
-      border-radius: 10px;
-      padding: 20px;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
     }
     h1 {
       text-align: center;
-      color: #0288d1;
     }
-    .location-input {
-      text-align: center;
-      margin-bottom: 20px;
-      position: relative;
+    input, button {
+      font-size: 1rem;
+      padding: 0.5rem;
+      margin-top: 1rem;
     }
-    input[type="text"] {
-      padding: 8px;
-      width: 250px;
-    }
-    button {
-      padding: 8px 12px;
-      background-color: #0288d1;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-    }
-    .autocomplete-list {
-      position: absolute;
-      background: white;
-      border: 1px solid #ccc;
-      width: 250px;
-      max-height: 150px;
-      overflow-y: auto;
-      z-index: 1000;
-      left: 50%;
-      transform: translateX(-50%);
-      top: 38px;
-    }
-    .autocomplete-item {
-      padding: 8px 10px;
-      cursor: pointer;
-    }
-    .autocomplete-item:hover {
-      background-color: #0288d1;
-      color: white;
+    #forecast {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-top: 2rem;
     }
     .forecast-day {
-      background: #f0faff;
-      border-radius: 8px;
-      padding: 10px;
-      margin-bottom: 10px;
+      padding: 1rem;
+      background: #fff;
+      border-radius: 0.5rem;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <h1>Always Sunny Weather</h1>
-    <div class="location-input">
-      <input id="locationInput" type="text" placeholder="Enter city or ZIP" autocomplete="off" />
-      <button onclick="handleSearch()">Get Forecast</button>
-      <div id="autocompleteList" class="autocomplete-list" style="display:none;"></div>
-    </div>
-    <h2 id="locationTitle" style="text-align:center;"></h2>
-    <div id="forecast"></div>
-  </div>
+
+  <h1>Weather Forecast for <span id="location-title">...</span></h1>
+
+  <input type="text" id="location-input" placeholder="Enter city or ZIP code" list="suggestions" />
+  <datalist id="suggestions"></datalist>
+  <button onclick="handleSearch()">Get Forecast</button>
+
+  <div id="forecast"></div>
 
   <script>
-    let currentResults = [];
+    const locationInput = document.getElementById("location-input");
+    const locationTitle = document.getElementById("location-title");
+    const suggestions = document.getElementById("suggestions");
 
-    const input = document.getElementById("locationInput");
-    const autocompleteList = document.getElementById("autocompleteList");
-    const locationTitle = document.getElementById("locationTitle");
-
-    input.addEventListener("input", async () => {
-      const query = input.value.trim();
+    async function handleSearch() {
+      const query = locationInput.value.trim();
       if (!query) {
-        autocompleteList.style.display = "none";
+        alert("Please enter a city or ZIP code.");
         return;
       }
 
       try {
         const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5`);
         const geoData = await geoRes.json();
-        currentResults = geoData.results || [];
-
-        if (currentResults.length === 0) {
-          autocompleteList.style.display = "none";
+        if (!geoData.results || geoData.results.length === 0) {
+          alert("Location not found.");
           return;
         }
-
-        autocompleteList.innerHTML = currentResults.map((loc, idx) => {
-          const label = `${loc.name}, ${loc.admin1 || ''}, ${loc.country || ''}`;
-          return `<div class="autocomplete-item" data-index="${idx}">${label}</div>`;
-        }).join("");
-        autocompleteList.style.display = "block";
-      } catch (error) {
-        console.error("Geocoding failed:", error);
+        const loc = geoData.results[0];
+        fetchWeather(loc.latitude, loc.longitude, loc.name + (loc.admin1 ? `, ${loc.admin1}` : ''));
+      } catch (e) {
+        console.error("Geocoding failed:", e);
+        alert("Error fetching location.");
       }
-    });
-
-    autocompleteList.addEventListener("click", (e) => {
-      if (e.target.classList.contains("autocomplete-item")) {
-        const index = parseInt(e.target.dataset.index);
-        const loc = currentResults[index];
-        if (loc) {
-          input.value = `${loc.name}, ${loc.admin1 || ''}, ${loc.country || ''}`;
-          autocompleteList.style.display = "none";
-          fetchWeather(loc.latitude, loc.longitude, input.value);
-        }
-      }
-    });
-
-    document.addEventListener("click", (e) => {
-      if (!autocompleteList.contains(e.target) && e.target !== input) {
-        autocompleteList.style.display = "none";
-      }
-    });
-
-    async function handleSearch() {
-      const query = input.value.trim();
-      if (!query) return alert("Please enter a location.");
-
-      if (currentResults.length > 0) {
-        const loc = currentResults[0];
-        fetchWeather(loc.latitude, loc.longitude, input.value);
-      } else {
-        const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=1`);
-        const data = await res.json();
-        const loc = data.results?.[0];
-        if (loc) {
-          fetchWeather(loc.latitude, loc.longitude, query);
-        } else {
-          alert("Location not found.");
-        }
-      }
-    }
-
-    function moonPhaseName(phase) {
-      if (phase === null || phase === undefined) return "Unknown";
-      if (phase === 0 || phase === 1) return "New Moon";
-      if (phase < 0.125) return "Waxing Crescent";
-      if (phase < 0.25) return "First Quarter";
-      if (phase < 0.375) return "Waxing Gibbous";
-      if (phase === 0.5) return "Full Moon";
-      if (phase < 0.75) return "Waning Gibbous";
-      if (phase < 0.875) return "Last Quarter";
-      return "Waning Crescent";
     }
 
     async function fetchWeather(lat, lon, locationName) {
       try {
         locationTitle.textContent = locationName;
         const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=moon_phase,temperature_2m_max,temperature_2m_min,weathercode,windspeed_10m_max&temperature_unit=fahrenheit&timezone=auto`;
+
         const res = await fetch(url);
         const data = await res.json();
+        console.log("Weather API response:", data);
+
+        if (!data.daily) {
+          throw new Error("Missing 'daily' data in API response.");
+        }
 
         const codes = {
-          0: "Clear sky",
-          1: "Mainly clear",
-          2: "Partly cloudy",
-          3: "Overcast",
-          45: "Fog",
-          48: "Depositing rime fog",
-          51: "Light drizzle",
-          53: "Moderate drizzle",
-          55: "Dense drizzle",
-          61: "Light rain",
-          63: "Moderate rain",
-          65: "Heavy rain",
-          80: "Light showers",
-          81: "Moderate showers",
-          82: "Violent showers",
-          95: "Thunderstorm",
-          96: "Thunderstorm with hail"
+          0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
+          45: "Fog", 48: "Rime fog", 51: "Light drizzle", 53: "Moderate drizzle", 55: "Dense drizzle",
+          61: "Light rain", 63: "Moderate rain", 65: "Heavy rain",
+          80: "Light showers", 81: "Moderate showers", 82: "Violent showers",
+          95: "Thunderstorm", 96: "Thunderstorm w/ hail"
         };
 
         const out = data.daily.time.map((date, i) => `
           <div class="forecast-day">
             <strong>${new Date(date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</strong><br />
-            ${codes[data.daily.weathercode[i]] || "Unknown condition"}<br />
-            High: ${data.daily.temperature_2m_max[i]}°F, Low: ${data.daily.temperature_2m_min[i]}°F<br />
+            ${codes[data.daily.weathercode[i]] || "Unknown"}<br />
+            High: ${data.daily.temperature_2m_max[i]}°F<br />
+            Low: ${data.daily.temperature_2m_min[i]}°F<br />
             Wind: ${data.daily.windspeed_10m_max[i]} mph<br />
             Moon: ${moonPhaseName(data.daily.moon_phase[i])}
           </div>
@@ -203,9 +105,39 @@
         document.getElementById("forecast").innerHTML = out;
       } catch (error) {
         console.error("Weather fetch failed:", error);
-        alert("Failed to fetch weather data. Try again later.");
+        alert("Failed to fetch weather data.");
       }
     }
+
+    function moonPhaseName(phase) {
+      if (phase === 0 || phase === 1) return "New Moon";
+      if (phase < 0.25) return "Waxing Crescent";
+      if (phase === 0.25) return "First Quarter";
+      if (phase < 0.5) return "Waxing Gibbous";
+      if (phase === 0.5) return "Full Moon";
+      if (phase < 0.75) return "Waning Gibbous";
+      if (phase === 0.75) return "Last Quarter";
+      return "Waning Crescent";
+    }
+
+    // Autocomplete: show top 5 matching cities
+    locationInput.addEventListener("input", async () => {
+      const query = locationInput.value.trim();
+      if (query.length < 2) return;
+
+      try {
+        const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5`);
+        const data = await res.json();
+        suggestions.innerHTML = "";
+        (data.results || []).forEach(loc => {
+          const opt = document.createElement("option");
+          opt.value = `${loc.name}${loc.admin1 ? `, ${loc.admin1}` : ""}`;
+          suggestions.appendChild(opt);
+        });
+      } catch (err) {
+        console.warn("Autocomplete failed:", err);
+      }
+    });
   </script>
 </body>
 </html>
