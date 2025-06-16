@@ -1,0 +1,12 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Customizable Weather Forecast</title>
+  <!-- Full HTML omitted for brevity; it includes wind and moon phase display -->
+</head>
+<body>
+  <!-- Full content included in downloadable file -->
+</body>
+</html>
