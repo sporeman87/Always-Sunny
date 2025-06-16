@@ -1,143 +1,138 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Always Sunny</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 2rem;
-      background: #f8f9fa;
-      color: #333;
-    }
-    h1 {
-      text-align: center;
-    }
-    input, button {
-      font-size: 1rem;
-      padding: 0.5rem;
-      margin-top: 1rem;
-    }
-    #forecast {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 1rem;
-      margin-top: 2rem;
-    }
-    .forecast-day {
-      padding: 1rem;
-      background: #fff;
-      border-radius: 0.5rem;
-      box-shadow: 0 0 10px rgba(0,0,0,0.1);
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Minimal Weather Forecast</title>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 600px; margin: 2rem auto; padding: 1rem; }
+  input, button { padding: 0.5rem; font-size: 1rem; }
+  #forecast { margin-top: 1rem; }
+</style>
 </head>
 <body>
 
-  <h1>Weather Forecast for <span id="location-title">...</span></h1>
+<h1>Weather Forecast</h1>
 
-  <input type="text" id="location-input" placeholder="Enter city or ZIP code" list="suggestions" />
-  <datalist id="suggestions"></datalist>
-  <button onclick="handleSearch()">Get Forecast</button>
+<label for="locationInput">Enter City or Zip:</label><br />
+<input id="locationInput" type="text" placeholder="e.g. Boston or 02108" />
+<button id="fetchBtn">Get Forecast</button>
 
-  <div id="forecast"></div>
+<h2 id="locationName"></h2>
+<div id="forecast"></div>
 
-  <script>
-    const locationInput = document.getElementById("location-input");
-    const locationTitle = document.getElementById("location-title");
-    const suggestions = document.getElementById("suggestions");
+<script>
+  const geoApiKey = '87e825738a584b12ba7f1127533efafd'; // Your Geoapify API key
 
-    async function handleSearch() {
-      const query = locationInput.value.trim();
-      if (!query) {
-        alert("Please enter a city or ZIP code.");
-        return;
-      }
+  async function geocode(query) {
+    const url = `https://api.geoapify.com/v1/geocode/search?text=${encodeURIComponent(query)}&limit=1&apiKey=${geoApiKey}`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Geocoding API error');
+    const data = await res.json();
+    if (!data.features || data.features.length === 0) throw new Error('Location not found');
+    const feature = data.features[0];
+    return {
+      lat: feature.geometry.coordinates[1],
+      lon: feature.geometry.coordinates[0],
+      name: feature.properties.formatted
+    };
+  }
 
-      try {
-        const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5`);
-        const geoData = await geoRes.json();
-        if (!geoData.results || geoData.results.length === 0) {
-          alert("Location not found.");
-          return;
-        }
-        const loc = geoData.results[0];
-        fetchWeather(loc.latitude, loc.longitude, loc.name + (loc.admin1 ? `, ${loc.admin1}` : ''));
-      } catch (e) {
-        console.error("Geocoding failed:", e);
-        alert("Error fetching location.");
-      }
+  async function fetchWeather(lat, lon) {
+    const dailyParams = "moon_phase,temperature_2m_max,temperature_2m_min,weathercode,windspeed_10m_max";
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=${dailyParams}&temperature_unit=fahrenheit&timezone=auto`;
+
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('Weather API error');
+    const data = await res.json();
+    if (!data.daily) throw new Error("Missing 'daily' data in API response.");
+    return data.daily;
+  }
+
+  function weatherCodeToText(code) {
+    const map = {
+      0: "Clear sky",
+      1: "Mainly clear",
+      2: "Partly cloudy",
+      3: "Overcast",
+      45: "Fog",
+      48: "Depositing rime fog",
+      51: "Light drizzle",
+      53: "Moderate drizzle",
+      55: "Dense drizzle",
+      56: "Light freezing drizzle",
+      57: "Dense freezing drizzle",
+      61: "Slight rain",
+      63: "Moderate rain",
+      65: "Heavy rain",
+      66: "Light freezing rain",
+      67: "Heavy freezing rain",
+      71: "Slight snow fall",
+      73: "Moderate snow fall",
+      75: "Heavy snow fall",
+      77: "Snow grains",
+      80: "Slight rain showers",
+      81: "Moderate rain showers",
+      82: "Violent rain showers",
+      85: "Slight snow showers",
+      86: "Heavy snow showers",
+      95: "Thunderstorm",
+      96: "Thunderstorm with slight hail",
+      99: "Thunderstorm with heavy hail"
+    };
+    return map[code] || "Unknown";
+  }
+
+  function moonPhaseToText(value) {
+    if (value === null || value === undefined) return "Unknown";
+    if (value === 0 || value === 1) return "New Moon";
+    if (value < 0.25) return "Waxing Crescent";
+    if (value === 0.25) return "First Quarter";
+    if (value < 0.5) return "Waxing Gibbous";
+    if (value === 0.5) return "Full Moon";
+    if (value < 0.75) return "Waning Gibbous";
+    if (value === 0.75) return "Last Quarter";
+    return "Waning Crescent";
+  }
+
+  document.getElementById('fetchBtn').addEventListener('click', async () => {
+    const query = document.getElementById('locationInput').value.trim();
+    if (!query) {
+      alert('Please enter a city or zip code.');
+      return;
     }
+    try {
+      document.getElementById('locationName').textContent = "Loading...";
+      document.getElementById('forecast').textContent = "";
 
-    async function fetchWeather(lat, lon, locationName) {
-      try {
-        locationTitle.textContent = locationName;
-        const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=moon_phase,temperature_2m_max,temperature_2m_min,weathercode,windspeed_10m_max&temperature_unit=fahrenheit&timezone=auto`;
+      const loc = await geocode(query);
+      document.getElementById('locationName').textContent = loc.name;
 
-        const res = await fetch(url);
-        const data = await res.json();
-        console.log("Weather API response:", data);
+      const daily = await fetchWeather(loc.lat, loc.lon);
 
-        if (!data.daily) {
-          throw new Error("Missing 'daily' data in API response.");
-        }
+      const date = daily.time[0];
+      const maxTemp = daily.temperature_2m_max[0];
+      const minTemp = daily.temperature_2m_min[0];
+      const weatherText = weatherCodeToText(daily.weathercode[0]);
+      const windMax = daily.windspeed_10m_max[0];
+      const moonPhase = moonPhaseToText(daily.moon_phase[0]);
 
-        const codes = {
-          0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
-          45: "Fog", 48: "Rime fog", 51: "Light drizzle", 53: "Moderate drizzle", 55: "Dense drizzle",
-          61: "Light rain", 63: "Moderate rain", 65: "Heavy rain",
-          80: "Light showers", 81: "Moderate showers", 82: "Violent showers",
-          95: "Thunderstorm", 96: "Thunderstorm w/ hail"
-        };
-
-        const out = data.daily.time.map((date, i) => `
-          <div class="forecast-day">
-            <strong>${new Date(date).toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' })}</strong><br />
-            ${codes[data.daily.weathercode[i]] || "Unknown"}<br />
-            High: ${data.daily.temperature_2m_max[i]}°F<br />
-            Low: ${data.daily.temperature_2m_min[i]}°F<br />
-            Wind: ${data.daily.windspeed_10m_max[i]} mph<br />
-            Moon: ${moonPhaseName(data.daily.moon_phase[i])}
-          </div>
-        `).join("");
-
-        document.getElementById("forecast").innerHTML = out;
-      } catch (error) {
-        console.error("Weather fetch failed:", error);
-        alert("Failed to fetch weather data.");
-      }
+      document.getElementById('forecast').innerHTML = `
+        <strong>Date:</strong> ${date}<br />
+        <strong>Max Temp:</strong> ${maxTemp} °F<br />
+        <strong>Min Temp:</strong> ${minTemp} °F<br />
+        <strong>Weather:</strong> ${weatherText}<br />
+        <strong>Max Wind Speed:</strong> ${windMax} km/h<br />
+        <strong>Moon Phase:</strong> ${moonPhase}
+      `;
+    } catch (err) {
+      console.error(err);
+      alert('Error fetching weather: ' + err.message);
+      document.getElementById('locationName').textContent = "";
+      document.getElementById('forecast').textContent = "";
     }
+  });
+</script>
 
-    function moonPhaseName(phase) {
-      if (phase === 0 || phase === 1) return "New Moon";
-      if (phase < 0.25) return "Waxing Crescent";
-      if (phase === 0.25) return "First Quarter";
-      if (phase < 0.5) return "Waxing Gibbous";
-      if (phase === 0.5) return "Full Moon";
-      if (phase < 0.75) return "Waning Gibbous";
-      if (phase === 0.75) return "Last Quarter";
-      return "Waning Crescent";
-    }
-
-    // Autocomplete: show top 5 matching cities
-    locationInput.addEventListener("input", async () => {
-      const query = locationInput.value.trim();
-      if (query.length < 2) return;
-
-      try {
-        const res = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5`);
-        const data = await res.json();
-        suggestions.innerHTML = "";
-        (data.results || []).forEach(loc => {
-          const opt = document.createElement("option");
-          opt.value = `${loc.name}${loc.admin1 ? `, ${loc.admin1}` : ""}`;
-          suggestions.appendChild(opt);
-        });
-      } catch (err) {
-        console.warn("Autocomplete failed:", err);
-      }
-    });
-  </script>
 </body>
 </html>
