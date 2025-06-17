@@ -5,7 +5,80 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Customizable Weather Forecast</title>
   <style>
-    /* ... (your styles remain unchanged) ... */
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(to bottom, #e0f7fa, #ffffff);
+      color: #333;
+      margin: 0;
+      padding: 20px;
+    }
+    .container {
+      max-width: 700px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      font-size: 1.5em;
+      margin-bottom: 10px;
+    }
+    .day {
+      margin-bottom: 15px;
+      padding: 10px;
+      border-radius: 8px;
+      background: #f0f8ff;
+    }
+    .day h3 {
+      margin: 0 0 5px;
+    }
+    .temps {
+      font-weight: bold;
+    }
+    .location-input {
+      text-align: center;
+      margin-bottom: 20px;
+      position: relative;
+    }
+    input[type="text"] {
+      padding: 8px;
+      width: 250px;
+      margin: 0 5px;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 8px 12px;
+      background-color: #0288d1;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      cursor: pointer;
+    }
+    /* Autocomplete dropdown styles */
+    .autocomplete-list {
+      position: absolute;
+      background: white;
+      border: 1px solid #ccc;
+      border-top: none;
+      width: 260px;
+      max-height: 150px;
+      overflow-y: auto;
+      z-index: 1000;
+      top: 38px;
+      left: calc(50% - 130px);
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      border-radius: 0 0 8px 8px;
+    }
+    .autocomplete-item {
+      padding: 8px 10px;
+      cursor: pointer;
+    }
+    .autocomplete-item:hover {
+      background-color: #0288d1;
+      color: white;
+    }
   </style>
 </head>
 <body>
@@ -18,37 +91,14 @@
     </div>
     <h2 id="locationName" style="text-align:center; margin-top: 0; color: #0288d1;"></h2>
     <div id="forecast"></div>
-    <h2 style="margin-top: 40px; text-align: center; color: #0288d1;">48-Hour Hourly Forecast</h2>
-    <div id="hourlyForecast" aria-label="48 hour weather forecast" tabindex="0"></div>
   </div>
 
   <script>
     let currentResults = [];
+
     const input = document.getElementById('locationInput');
     const autocompleteList = document.getElementById('autocompleteList');
     const locationNameEl = document.getElementById('locationName');
-    const forecastContainer = document.getElementById('forecast');
-    const hourlyContainer = document.getElementById('hourlyForecast');
-
-    const weatherCodes = {
-      0: {desc: "Clear sky", icon: "☀️"},
-      1: {desc: "Mainly clear", icon: "🌤️"},
-      2: {desc: "Partly cloudy", icon: "⛅"},
-      3: {desc: "Overcast", icon: "☁️"},
-      45: {desc: "Fog", icon: "🌫️"},
-      48: {desc: "Depositing rime fog", icon: "🌫️"},
-      51: {desc: "Light drizzle", icon: "🌦️"},
-      53: {desc: "Moderate drizzle", icon: "🌦️"},
-      55: {desc: "Dense drizzle", icon: "🌧️"},
-      61: {desc: "Light rain", icon: "🌧️"},
-      63: {desc: "Moderate rain", icon: "🌧️"},
-      65: {desc: "Heavy rain", icon: "🌧️"},
-      80: {desc: "Light showers", icon: "🌦️"},
-      81: {desc: "Moderate showers", icon: "🌧️"},
-      82: {desc: "Violent showers", icon: "⛈️"},
-      95: {desc: "Thunderstorm", icon: "⛈️"},
-      96: {desc: "Thunderstorm with hail", icon: "⛈️"}
-    };
 
     input.addEventListener('input', async () => {
       const query = input.value.trim();
@@ -56,25 +106,22 @@
         autocompleteList.style.display = 'none';
         return;
       }
-      try {
-        const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=en&format=json`);
-        const geoData = await geoRes.json();
-        currentResults = geoData.results || [];
 
-        if (currentResults.length === 0) {
-          autocompleteList.style.display = 'none';
-          return;
-        }
+      const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=en&format=json`);
+      const geoData = await geoRes.json();
+      currentResults = geoData.results || [];
 
-        autocompleteList.innerHTML = currentResults.map((loc, idx) => {
-          const display = `${loc.name}${loc.admin1 ? ', ' + loc.admin1 : ''}${loc.country ? ', ' + loc.country : ''}`;
-          return `<div class="autocomplete-item" data-index="${idx}">${display}</div>`;
-        }).join('');
-
-        autocompleteList.style.display = 'block';
-      } catch (e) {
+      if (currentResults.length === 0) {
         autocompleteList.style.display = 'none';
+        return;
       }
+
+      autocompleteList.innerHTML = currentResults.map((loc, idx) => {
+        const display = `${loc.name}${loc.admin1 ? ', ' + loc.admin1 : ''}${loc.country ? ', ' + loc.country : ''}`;
+        return `<div class="autocomplete-item" data-index="${idx}">${display}</div>`;
+      }).join('');
+
+      autocompleteList.style.display = 'block';
     });
 
     autocompleteList.addEventListener('click', (e) => {
@@ -103,103 +150,77 @@
         fetchForecast(loc.latitude, loc.longitude, input.value);
       } else {
         locationNameEl.textContent = '';
-        forecastContainer.innerHTML = '<p>Location not found.</p>';
-        hourlyContainer.innerHTML = '';
+        document.getElementById('forecast').innerHTML = '<p>Location not found.</p>';
       }
-    }
-
-    function degToCompass(num) {
-      const val = Math.floor((num / 22.5) + 0.5);
-      const arr = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE",
-                   "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
-      return arr[(val % 16)];
     }
 
     async function fetchForecast(lat, lon, locationName = '') {
       locationNameEl.textContent = locationName;
-      forecastContainer.innerHTML = '<p>Loading daily forecast...</p>';
-      hourlyContainer.innerHTML = '<p>Loading hourly forecast...</p>';
-
       try {
-        const response = await fetch(
-          `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}` +
-          `&daily=temperature_2m_max,temperature_2m_min,weathercode` +
-          `&hourly=temperature_2m,weathercode,precipitation_probability,windspeed_10m,winddirection_10m` +
-          `&temperature_unit=fahrenheit&windspeed_unit=mph&precipitation_unit=mm&timezone=auto`
-        );
+        const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,weathercode,wind_speed_10m_max,winddirection_10m_dominant,precipitation_sum,sunrise,sunset,uv_index_max&temperature_unit=fahrenheit&timezone=auto`);
         const data = await response.json();
 
-        if (!data.daily || !data.hourly) {
-          forecastContainer.innerHTML = '<p>Weather data unavailable.</p>';
-          hourlyContainer.innerHTML = '';
+        if (!data.daily) {
+          document.getElementById("forecast").innerHTML = "<p>Weather data unavailable.</p>";
           return;
         }
 
-        // Daily forecast
+        const weatherCodes = {
+          0: "Clear sky",
+          1: "Mainly clear",
+          2: "Partly cloudy",
+          3: "Overcast",
+          45: "Fog",
+          48: "Depositing rime fog",
+          51: "Light drizzle",
+          53: "Moderate drizzle",
+          55: "Dense drizzle",
+          61: "Light rain",
+          63: "Moderate rain",
+          65: "Heavy rain",
+          80: "Light showers",
+          81: "Moderate showers",
+          82: "Violent showers",
+          95: "Thunderstorm",
+          96: "Thunderstorm with hail"
+        };
+
+        const container = document.getElementById("forecast");
         const days = data.daily.time;
-        forecastContainer.innerHTML = days.map((date, i) => {
+
+        container.innerHTML = days.map((date, i) => {
           const high = data.daily.temperature_2m_max[i];
           const low = data.daily.temperature_2m_min[i];
           const code = data.daily.weathercode[i];
-          const condition = weatherCodes[code]?.desc || "Unknown";
+          const condition = weatherCodes[code] || "Unknown";
+          const windSpeed = data.daily.wind_speed_10m_max[i];
+          const windDir = data.daily.winddirection_10m_dominant[i];
+          const precip = data.daily.precipitation_sum[i];
+          const sunrise = new Date(data.daily.sunrise[i]);
+          const sunset = new Date(data.daily.sunset[i]);
+          const uvIndex = data.daily.uv_index_max[i];
+
+          function windDirectionToText(deg) {
+            const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW', 'N'];
+            const index = Math.round(deg / 45);
+            return directions[index];
+          }
 
           return `
             <div class="day">
               <h3>${new Date(date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</h3>
               <p>${condition}. <span class="temps">High: ${high}°F, Low: ${low}°F</span></p>
+              <p>Wind: ${windSpeed} mph ${windDirectionToText(windDir)}</p>
+              <p>Precipitation: ${precip} mm</p>
+              <p>Sunrise: ${sunrise.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}, Sunset: ${sunset.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+              <p>UV Index (max): ${uvIndex}</p>
             </div>
           `;
         }).join("");
-
-        // Hourly forecast
-        const now = new Date();
-        const hourlyTimes = data.hourly.time;
-        const temps = data.hourly.temperature_2m;
-        const codes = data.hourly.weathercode;
-        const precips = data.hourly.precipitation_probability;
-        const winds = data.hourly.windspeed_10m;
-        const windDirs = data.hourly.winddirection_10m;
-
-        let startIndex = 0;
-        for (let i = 0; i < hourlyTimes.length; i++) {
-          if (new Date(hourlyTimes[i]) >= now) {
-            startIndex = i;
-            break;
-          }
-        }
-
-        const endIndex = Math.min(startIndex + 48, hourlyTimes.length);
-
-        hourlyContainer.innerHTML = '';
-        for (let i = startIndex; i < endIndex; i++) {
-          const time = new Date(hourlyTimes[i]);
-          const hourStr = time.toLocaleTimeString(undefined, { hour: 'numeric', hour12: true });
-          const code = codes[i];
-          const weather = weatherCodes[code] || {desc: "Unknown", icon: "❓"};
-          const temp = temps[i];
-          const precip = precips[i];
-          const windSpeed = winds[i];
-          const windDir = windDirs[i];
-
-          hourlyContainer.innerHTML += `
-            <div class="hour-block" title="${time.toLocaleString()} - ${weather.desc}">
-              <div class="hour-time">${hourStr}</div>
-              <div class="weather-icon" aria-label="${weather.desc}">${weather.icon}</div>
-              <div class="temp">${temp}°F</div>
-              <div class="wind" aria-label="Wind: ${windSpeed} mph from ${degToCompass(windDir)}">
-                ${windSpeed} mph
-                <svg class="wind-arrow" style="transform: rotate(${windDir}deg);" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="#0288d1">
-                  <path d="M12 2 L19 21 H5 L12 2 Z"/>
-                </svg>
-              </div>
-              <div class="precip">☔ ${precip}%</div>
-            </div>
-          `;
-        }
-
-      } catch (e) {
-        forecastContainer.innerHTML = '<p>Error fetching weather data.</p>';
-        hourlyContainer.innerHTML = '';
+      } catch (error) {
+        document.getElementById("forecast").innerHTML = "<p>Error fetching weather data.</p>";
+        locationNameEl.textContent = "";
+        console.error(error);
       }
     }
   </script>
