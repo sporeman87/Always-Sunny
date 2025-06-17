@@ -107,21 +107,26 @@
         return;
       }
 
-      const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=en&format=json`);
-      const geoData = await geoRes.json();
-      currentResults = geoData.results || [];
+      try {
+        const geoRes = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=5&language=en&format=json`);
+        const geoData = await geoRes.json();
+        currentResults = geoData.results || [];
 
-      if (currentResults.length === 0) {
+        if (currentResults.length === 0) {
+          autocompleteList.style.display = 'none';
+          return;
+        }
+
+        autocompleteList.innerHTML = currentResults.map((loc, idx) => {
+          const display = `${loc.name}${loc.admin1 ? ', ' + loc.admin1 : ''}${loc.country ? ', ' + loc.country : ''}`;
+          return `<div class="autocomplete-item" data-index="${idx}">${display}</div>`;
+        }).join('');
+
+        autocompleteList.style.display = 'block';
+      } catch (err) {
+        console.error('Geocoding fetch failed:', err);
         autocompleteList.style.display = 'none';
-        return;
       }
-
-      autocompleteList.innerHTML = currentResults.map((loc, idx) => {
-        const display = `${loc.name}${loc.admin1 ? ', ' + loc.admin1 : ''}${loc.country ? ', ' + loc.country : ''}`;
-        return `<div class="autocomplete-item" data-index="${idx}">${display}</div>`;
-      }).join('');
-
-      autocompleteList.style.display = 'block';
     });
 
     autocompleteList.addEventListener('click', (e) => {
@@ -156,48 +161,66 @@
 
     async function fetchForecast(lat, lon, locationName = '') {
       locationNameEl.textContent = locationName;
-      const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,weathercode&temperature_unit=fahrenheit&timezone=auto`);
-      const data = await response.json();
 
-      const weatherCodes = {
-        0: "Clear sky",
-        1: "Mainly clear",
-        2: "Partly cloudy",
-        3: "Overcast",
-        45: "Fog",
-        48: "Depositing rime fog",
-        51: "Light drizzle",
-        53: "Moderate drizzle",
-        55: "Dense drizzle",
-        61: "Light rain",
-        63: "Moderate rain",
-        65: "Heavy rain",
-        80: "Light showers",
-        81: "Moderate showers",
-        82: "Violent showers",
-        95: "Thunderstorm",
-        96: "Thunderstorm with hail"
-      };
+      try {
+        const response = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min,weathercode&temperature_unit=fahrenheit&timezone=auto`);
+        const data = await response.json();
 
-      const container = document.getElementById("forecast");
-      const days = data.daily.time;
+        if (!data.daily || !data.daily.time) {
+          document.getElementById("forecast").innerHTML = '<p>No forecast data available.</p>';
+          return;
+        }
 
-      container.innerHTML = days.map((date, i) => {
-        const high = data.daily.temperature_2m_max[i];
-        const low = data.daily.temperature_2m_min[i];
-        const code = data.daily.weathercode[i];
-        const condition = weatherCodes[code] || "Unknown";
+        const weatherCodes = {
+          0: "Clear sky",
+          1: "Mainly clear",
+          2: "Partly cloudy",
+          3: "Overcast",
+          45: "Fog",
+          48: "Depositing rime fog",
+          51: "Light drizzle",
+          53: "Moderate drizzle",
+          55: "Dense drizzle",
+          61: "Light rain",
+          63: "Moderate rain",
+          65: "Heavy rain",
+          80: "Light showers",
+          81: "Moderate showers",
+          82: "Violent showers",
+          95: "Thunderstorm",
+          96: "Thunderstorm with hail"
+        };
 
-        return `
-          <div class="day">
-            <h3>${new Date(date).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })}</h3>
-            <p>${condition}. <span class="temps">High: ${high}°F, Low: ${low}°F</span></p>
-          </div>
-        `;
-      }).join("");
+        const container = document.getElementById("forecast");
+        const days = data.daily.time;
+        const timezone = data.timezone || 'UTC';
+
+        container.innerHTML = days.map((dateStr, i) => {
+          const date = new Date(dateStr + 'T00:00:00');
+
+          const options = { weekday: 'long', month: 'long', day: 'numeric', timeZone: timezone };
+          const dayName = new Intl.DateTimeFormat(undefined, options).format(date);
+
+          const high = data.daily.temperature_2m_max[i];
+          const low = data.daily.temperature_2m_min[i];
+          const code = data.daily.weathercode[i];
+          const condition = weatherCodes[code] || "Unknown";
+
+          return `
+            <div class="day">
+              <h3>${dayName}</h3>
+              <p>${condition}. <span class="temps">High: ${high}°F, Low: ${low}°F</span></p>
+            </div>
+          `;
+        }).join("");
+
+      } catch (err) {
+        console.error('Forecast fetch failed:', err);
+        document.getElementById("forecast").innerHTML = '<p>Failed to load forecast.</p>';
+      }
     }
 
-    
+    // No default location on page load now
   </script>
 </body>
 </html>
